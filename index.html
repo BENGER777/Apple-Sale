@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
+  <link rel="manifest" href="manifest.json">
+  <title>iPhone Flip</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #000;
+      --surface: #111;
+      --card: #1a1a1a;
+      --text: #fff;
+      --text-secondary: #aaa;
+      --accent: #0a84ff;
+      --danger: #ff453a;
+      --success: #30d158;
+      --warning: #ff9f0a;
+      --border: #333;
+      --radius: 16px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --transition: 0.2s ease;
+    }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--transition);
+    }
+    #app {
+      max-width: 390px;
+      margin: 0 auto;
+      padding: 16px 16px 80px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      position: relative;
+    }
+    .screen {
+      display: none;
+      flex-direction: column;
+      gap: 20px;
+      animation: fade 0.3s ease;
+    }
+    .screen.active { display: flex; }
+    @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    h1, h2, h3 { font-weight: 600; letter-spacing: -0.3px; }
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      border: 1px solid var(--border);
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--accent); color: #fff; border: none; border-radius: 12px;
+      padding: 12px 20px; font-size: 16px; font-weight: 600; gap: 6px;
+      cursor: pointer; transition: opacity var(--transition), transform 0.1s;
+    }
+    .btn:active { opacity: 0.7; transform: scale(0.97); }
+    .btn.secondary { background: #333; color: var(--text); }
+    .btn.danger { background: var(--danger); }
+    .btn.small { padding: 8px 14px; font-size: 14px; }
+    .input, select, textarea {
+      background: #222; border: 1px solid #444; border-radius: 12px; padding: 12px;
+      color: #fff; font-size: 16px; width: 100%; outline: none; font-family: var(--font);
+    }
+    .input:focus, select:focus { border-color: var(--accent); }
+    .tag {
+      display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px;
+      font-weight: 500; background: #333;
+    }
+    .tag.repair { background: #ff9f0a22; color: var(--warning); }
+    .tag.ready { background: #30d15822; color: var(--success); }
+    .tag.listed { background: #0a84ff22; color: var(--accent); }
+    .tag.sold { background: #555; color: #ccc; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .flex { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 390px; max-width: 100%; background: #111; border-top: 1px solid #222;
+      display: flex; justify-content: space-around; padding: 8px 0 20px;
+      backdrop-filter: blur(12px); z-index: 10;
+    }
+    .nav-item {
+      color: #888; display: flex; flex-direction: column; align-items: center;
+      font-size: 11px; gap: 4px; transition: color var(--transition);
+    }
+    .nav-item.active { color: var(--accent); }
+    .nav-icon { font-size: 20px; }
+    .progress-bar {
+      height: 6px; background: #333; border-radius: 6px; overflow: hidden;
+    }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 6px; width: 0%; transition: width 0.5s; }
+    .swipe-container { overflow: hidden; position: relative; }
+    .swipe-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
+    .swipe-action { width: 80px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; }
+    .swipe-action.sell { background: var(--success); }
+    .swipe-action.delete { background: var(--danger); }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 20;
+      display: none; align-items: center; justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: #1a1a1a; border-radius: 20px; padding: 24px; width: 90%; max-width: 350px;
+    }
+    .chart-container { position: relative; width: 100%; max-height: 250px; }
+    .goal-widget { background: linear-gradient(135deg, #1a1a1a, #111); border: 1px solid #333; }
+    .warning-box {
+      background: #ff9f0a15; border: 1px solid var(--warning); border-radius: 12px;
+      padding: 10px; color: var(--warning); font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Onboarding -->
+  <div id="onboarding-screen" class="screen active">
+    <div style="text-align:center; margin-top: 40px;">
+      <h1 style="font-size:28px;">📱 iPhone Flip</h1>
+      <p style="color:var(--text-secondary); margin:10px 0 20px;">Учёт перепродажи и финансовые цели</p>
+    </div>
+    <div id="pin-setup" style="display:none;">
+      <h3>Придумайте PIN-код (4 цифры)</h3>
+      <input type="password" id="new-pin" class="input" maxlength="4" inputmode="numeric" placeholder="****">
+      <button class="btn" onclick="setPin()" style="margin-top:12px;">Установить</button>
+    </div>
+    <div id="pin-enter" style="display:none;">
+      <h3>Введите PIN</h3>
+      <input type="password" id="pin-input" class="input" maxlength="4" inputmode="numeric" placeholder="****">
+      <button class="btn" onclick="checkPin()" style="margin-top:12px;">Войти</button>
+    </div>
+    <div id="welcome-instructions" class="card" style="margin-top:20px; display:none;">
+      <p>• Добавляйте купленные iPhone</p>
+      <p>• Учитывайте все расходы</p>
+      <p>• Фиксируйте продажи</p>
+      <p>• Ставьте цели и отслеживайте прогресс</p>
+    </div>
+  </div>
+
+  <!-- Main screens -->
+  <div id="dashboard-screen" class="screen">
+    <h2>Дашборд</h2>
+    <div class="grid">
+      <div class="card"><small>Продано сегодня</small><h3 id="stat-today">0</h3></div>
+      <div class="card"><small>Продано за неделю</small><h3 id="stat-week">0</h3></div>
+      <div class="card"><small>Продано за месяц</small><h3 id="stat-month">0</h3></div>
+      <div class="card"><small>Чистая прибыль (мес.)</small><h3 id="stat-profit">0 ₽</h3></div>
+    </div>
+    <div class="card">
+      <small>Замороженный капитал</small><h3 id="frozen-capital">0 ₽</h3>
+    </div>
+    <div class="goal-widget card" id="goal-widget"></div>
+    <div class="chart-container"><canvas id="miniChart"></canvas></div>
+    <div class="flex"><button class="btn" onclick="navigateTo('inventory')">+ Покупка</button><button class="btn secondary" onclick="openQuickSale()">+ Продажа</button></div>
+  </div>
+
+  <div id="inventory-screen" class="screen">
+    <h2>Инвентарь</h2>
+    <div class="flex" style="justify-content: space-between;">
+      <select id="status-filter" class="input" style="width:auto;" onchange="renderInventory()">
+        <option value="all">Все</option><option value="repair">В ремонте</option><option value="ready">Готов к продаже</option>
+        <option value="listed">Выставлен</option><option value="sold">Продан</option>
+      </select>
+      <button class="btn small" onclick="openDeviceForm()">+ Добавить</button>
+    </div>
+    <div id="inventory-list"></div>
+    <div id="empty-inventory" class="card" style="text-align:center; color:var(--text-secondary);">Нет устройств</div>
+  </div>
+
+  <div id="goals-screen" class="screen">
+    <h2>Цели</h2>
+    <button class="btn" onclick="openGoalForm()">+ Новая цель</button>
+    <div id="goals-list"></div>
+  </div>
+
+  <div id="analytics-screen" class="screen">
+    <h2>Аналитика</h2>
+    <div class="chart-container"><canvas id="profitChart"></canvas></div>
+    <div class="chart-container"><canvas id="modelChart"></canvas></div>
+    <div class="chart-container"><canvas id="costChart"></canvas></div>
+  </div>
+
+  <div id="settings-screen" class="screen">
+    <h2>Настройки</h2>
+    <div class="card flex" style="justify-content:space-between;">
+      <span>AMOLED-режим</span><label class="switch"><input type="checkbox" id="amoled-toggle" onchange="toggleAmoled()"></label>
+    </div>
+    <div class="card"><input type="file" id="import-file" accept=".json" onchange="importData()" style="display:none;"><button class="btn" onclick="document.getElementById('import-file').click()">Импорт JSON</button></div>
+    <button class="btn" onclick="exportJSON()">Экспорт JSON</button>
+    <button class="btn secondary" onclick="exportCSV()">Экспорт CSV</button>
+    <button class="btn danger" onclick="restoreBackup()">Восстановить бэкап</button>
+    <div class="card">
+      <p>Конвертер валют</p>
+      <input id="usd-input" class="input" placeholder="Цена в USD" type="number" step="0.01" oninput="convertCurrency()">
+      <p id="rub-output" style="margin-top:8px;">0 RUB</p>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <div class="nav-item active" data-screen="dashboard" onclick="navigateTo('dashboard')"><span class="nav-icon">📊</span>Дашборд</div>
+  <div class="nav-item" data-screen="inventory" onclick="navigateTo('inventory')"><span class="nav-icon">📦</span>Инвентарь</div>
+  <div class="nav-item" data-screen="goals" onclick="navigateTo('goals')"><span class="nav-icon">🎯</span>Цели</div>
+  <div class="nav-item" data-screen="analytics" onclick="navigateTo('analytics')"><span class="nav-icon">📈</span>Аналитика</div>
+  <div class="nav-item" data-screen="settings" onclick="navigateTo('settings')"><span class="nav-icon">⚙️</span>Ещё</div>
+</div>
+
+<div class="modal-overlay" id="modal"><div class="modal" id="modal-content"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Service worker registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+}
+
+// ----- DATA LAYER -----
+const STORAGE_KEY = 'iphone_flip_data';
+const BACKUP_KEY = 'iphone_flip_backup';
+let appData = {
+  inventory: [],
+  goals: [],
+  settings: { targetDaysToSell: 14, amoled: false, pinHash: null, rate: null, rateDate: null },
+  lastBackup: null
+};
+
+function hashPin(pin) {
+  let h = 0;
+  for (let i = 0; i < pin.length; i++) h = (h << 5) - h + pin.charCodeAt(i) | 0;
+  return Math.abs(h).toString(16);
+}
+
+function loadData() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try { appData = JSON.parse(saved); } catch(e) {}
+  }
+  // ensure settings defaults
+  if (!appData.settings) appData.settings = { targetDaysToSell: 14, amoled: false, pinHash: null, rate: null, rateDate: null };
+  if (!appData.inventory) appData.inventory = [];
+  if (!appData.goals) appData.goals = [];
+}
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+  dailyBackup();
+}
+function dailyBackup() {
+  const today = new Date().toDateString();
+  if (appData.lastBackup !== today) {
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(appData));
+    appData.lastBackup = today;
+  }
+}
+function restoreBackup() {
+  const backup = localStorage.getItem(BACKUP_KEY);
+  if (backup) {
+    appData = JSON.parse(backup);
+    saveData();
+    location.reload();
+  } else alert('Нет резервной копии');
+}
+
+// ----- PIN LOGIC -----
+function initOnboarding() {
+  if (!appData.settings.pinHash) {
+    document.getElementById('pin-setup').style.display = 'block';
+    document.getElementById('welcome-instructions').style.display = 'block';
+  } else {
+    document.getElementById('pin-enter').style.display = 'block';
+  }
+}
+function setPin() {
+  const pin = document.getElementById('new-pin').value.trim();
+  if (pin.length !== 4 || !/^\d{4}$/.test(pin)) return alert('Введите 4 цифры');
+  appData.settings.pinHash = hashPin(pin);
+  saveData();
+  document.getElementById('onboarding-screen').classList.remove('active');
+  navigateTo('dashboard');
+}
+function checkPin() {
+  const pin = document.getElementById('pin-input').value.trim();
+  if (hashPin(pin) === appData.settings.pinHash) {
+    document.getElementById('onboarding-screen').classList.remove('active');
+    navigateTo('dashboard');
+  } else alert('Неверный PIN');
+}
+
+// ----- NAVIGATION -----
+function navigateTo(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById(screen + '-screen');
+  if (target) target.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navItem = document.querySelector(`.nav-item[data-screen="${screen}"]`);
+  if (navItem) navItem.classList.add('active');
+  if (screen === 'dashboard') updateDashboard();
+  if (screen === 'inventory') renderInventory();
+  if (screen === 'goals') renderGoals();
+  if (screen === 'analytics') renderAnalytics();
+}
+// Quick sale modal
+function openQuickSale() {
+  const unsold = appData.inventory.filter(d => d.status !== 'sold');
+  if (!unsold.length) return alert('Нет доступных устройств');
+  let html = '<h3>Быстрая продажа</h3><select id="quick-sale-device" class="input">';
+  unsold.forEach(d => html += `<option value="${d.id}">${d.model} (${d.status})</option>`);
+  html += '</select><input id="quick-sale-price" class="input" placeholder="Цена продажи" type="number"><input id="quick-sale-date" class="input" type="date"><button class="btn" onclick="submitQuickSale()">Продать</button>';
+  showModal(html);
+}
+function submitQuickSale() {
+  const id = document.getElementById('quick-sale-device').value;
+  const price = parseFloat(document.getElementById('quick-sale-price').value);
+  const date = document.getElementById('quick-sale-date').value;
+  if (!price || !date) return alert('Заполните поля');
+  const device = appData.inventory.find(d => d.id === id);
+  if (!device) return;
+  device.status = 'sold';
+  device.sale = { price, date, source: 'Быстрая продажа' };
+  saveData();
+  closeModal();
+  renderInventory();
+  updateDashboard();
+}
+
+// ----- INVENTORY -----
+function openDeviceForm(device = null) {
+  let html = `<h3>${device ? 'Редактировать' : 'Новое устройство'}</h3>
+    <input id="dev-model" class="input" placeholder="Модель" value="${device?.model||''}">
+    <input id="dev-color" class="input" placeholder="Цвет" value="${device?.color||''}">
+    <input id="dev-storage" class="input" placeholder="Память (ГБ)" value="${device?.storage||''}">
+    <select id="dev-condition" class="input"><option>Новый</option><option>Б/у</option><option>Требует ремонт</option></select>
+    <input id="dev-imei" class="input" placeholder="IMEI (опционально)" value="${device?.imei||''}">
+    <textarea id="dev-notes" class="input" placeholder="Заметки">${device?.notes||''}</textarea>
+    <h4>Расходы</h4>
+    <input id="dev-cost" class="input" placeholder="Цена закупки" type="number" value="${device?.purchaseCost||''}">
+    <input id="dev-repair" class="input" placeholder="Ремонт" type="number" value="${device?.repairCost||''}">
+    <input id="dev-accessories" class="input" placeholder="Аксессуары" type="number" value="${device?.accessoriesCost||''}">
+    <input id="dev-shipping" class="input" placeholder="Доставка" type="number" value="${device?.shippingCost||''}">
+    <input id="dev-fee" class="input" placeholder="Комиссия площадки" type="number" value="${device?.platformFee||''}">
+    <button class="btn" onclick="saveDevice('${device?.id||''}')">Сохранить</button>`;
+  showModal(html);
+  if (device) document.getElementById('dev-condition').value = device.condition;
+}
+function saveDevice(id) {
+  const device = id ? appData.inventory.find(d => d.id === id) : null;
+  const data = {
+    id: id || Date.now().toString(36) + Math.random().toString(36).substr(2,5),
+    model: document.getElementById('dev-model').value,
+    color: document.getElementById('dev-color').value,
+    storage: document.getElementById('dev-storage').value,
+    condition: document.getElementById('dev-condition').value,
+    imei: document.getElementById('dev-imei').value,
+    notes: document.getElementById('dev-notes').value,
+    purchaseCost: parseFloat(document.getElementById('dev-cost').value)||0,
+    repairCost: parseFloat(document.getElementById('dev-repair').value)||0,
+    accessoriesCost: parseFloat(document.getElementById('dev-accessories').value)||0,
+    shippingCost: parseFloat(document.getElementById('dev-shipping').value)||0,
+    platformFee: parseFloat(document.getElementById('dev-fee').value)||0,
+    status: device?.status || 'repair',
+    sale: device?.sale || null,
+    checklist: device?.checklist || { faceID: false, photo: false, factoryReset: false },
+    purchaseDate: device?.purchaseDate || new Date().toISOString()
+  };
+  if (device) Object.assign(device, data);
+  else appData.inventory.push(data);
+  saveData();
+  closeModal();
+  renderInventory();
+}
+
+function renderInventory() {
+  const filter = document.getElementById('status-filter')?.value || 'all';
+  const list = document.getElementById('inventory-list');
+  const empty = document.getElementById('empty-inventory');
+  let items = appData.inventory.filter(d => filter === 'all' || d.status === filter);
+  if (!items.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  list.innerHTML = items.map(d => {
+    const totalCost = (d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0);
+    const profit = d.sale ? d.sale.price - totalCost : null;
+    const margin = profit && d.sale ? ((profit / d.sale.price)*100).toFixed(1) : null;
+    const daysSince = Math.floor((Date.now() - new Date(d.purchaseDate).getTime()) / 86400000);
+    const warning = d.status !== 'sold' && daysSince > (appData.settings.targetDaysToSell||14) ? '<div class="warning-box">Пора снижать цену? (висит '+daysSince+' дн.)</div>' : '';
+    const statusTag = `<span class="tag ${d.status}">${d.status==='repair'?'В ремонте':d.status==='ready'?'Готов':d.status==='listed'?'Выставлен':'Продан'}</span>`;
+    const checklistHtml = d.status!=='sold' ? `
+      <div class="flex" style="gap:8px; font-size:13px;">
+        <label><input type="checkbox" ${d.checklist.faceID?'checked':''} onchange="toggleChecklist('${d.id}','faceID')"> Face ID</label>
+        <label><input type="checkbox" ${d.checklist.photo?'checked':''} onchange="toggleChecklist('${d.id}','photo')"> Фото</label>
+        <label><input type="checkbox" ${d.checklist.factoryReset?'checked':''} onchange="toggleChecklist('${d.id}','factoryReset')"> Сброс</label>
+      </div>` : '';
+    return `<div class="card swipe-container" data-id="${d.id}" style="position:relative;">
+      <div style="display:flex; justify-content:space-between;">
+        <strong>${d.model} ${d.color} ${d.storage}GB</strong> ${statusTag}
+      </div>
+      <div style="color:var(--text-secondary)">${d.condition} | IMEI: ${d.imei||'—'}</div>
+      <div>Себестоимость: ${totalCost.toLocaleString()} ₽</div>
+      ${d.sale ? `<div>Продажа: ${d.sale.price.toLocaleString()} ₽ | Прибыль: ${profit.toLocaleString()} ₽ (маржа ${margin}%)</div>` : ''}
+      ${warning}
+      ${checklistHtml}
+      <div class="swipe-actions" id="swipe-${d.id}">
+        <div class="swipe-action sell" onclick="sellDevice('${d.id}')">Продать</div>
+        <div class="swipe-action delete" onclick="deleteDevice('${d.id}')">Удалить</div>
+      </div>
+    </div>`;
+  }).join('');
+  // Add swipe listeners
+  document.querySelectorAll('.swipe-container').forEach(el => {
+    let startX = 0, currentX = 0, swiped = false;
+    el.addEventListener('touchstart', e => { startX = e.touches[0].clientX; });
+    el.addEventListener('touchmove', e => { currentX = e.touches[0].clientX; const diff = startX - currentX; if (diff > 20) { el.style.transform = `translateX(-${Math.min(diff,160)}px)`; swiped = true; } });
+    el.addEventListener('touchend', () => { if (swiped) { el.style.transform = 'translateX(0)'; swiped = false; } });
+  });
+}
+function toggleChecklist(id, key) {
+  const dev = appData.inventory.find(d => d.id === id);
+  if (dev) { dev.checklist[key] = !dev.checklist[key]; saveData(); renderInventory(); }
+}
+function sellDevice(id) {
+  const dev = appData.inventory.find(d => d.id === id);
+  if (!dev || dev.status === 'sold') return;
+  let html = `<h3>Продажа</h3><input id="sale-price" class="input" placeholder="Цена" type="number"><input id="sale-date" class="input" type="date"><input id="sale-source" class="input" placeholder="Источник"><button class="btn" onclick="confirmSell('${id}')">Подтвердить</button>`;
+  showModal(html);
+}
+function confirmSell(id) {
+  const price = parseFloat(document.getElementById('sale-price').value);
+  const date = document.getElementById('sale-date').value;
+  const source = document.getElementById('sale-source').value;
+  if (!price || !date) return alert('Заполните');
+  const dev = appData.inventory.find(d => d.id === id);
+  dev.status = 'sold';
+  dev.sale = { price, date, source };
+  saveData(); closeModal(); renderInventory(); updateDashboard();
+}
+function deleteDevice(id) { if (confirm('Удалить?')) { appData.inventory = appData.inventory.filter(d => d.id !== id); saveData(); renderInventory(); } }
+
+// ----- GOALS -----
+function openGoalForm(goal = null) {
+  let html = `<h3>${goal?'Редактировать':'Новая цель'}</h3>
+    <input id="goal-name" class="input" placeholder="Название" value="${goal?.name||''}">
+    <select id="goal-type" class="input"><option value="accumulation">Накопление суммы</option><option value="monthlyProfit">Чистая прибыль за период</option><option value="avgMargin">Средняя маржа</option></select>
+    <input id="goal-target" class="input" placeholder="Целевое значение" type="number" value="${goal?.targetValue||''}">
+    <input id="goal-deadline" class="input" type="date" value="${goal?.deadline||''}">
+    <button class="btn" onclick="saveGoal('${goal?.id||''}')">Сохранить</button>`;
+  showModal(html);
+}
+function saveGoal(id) {
+  const goal = id ? appData.goals.find(g => g.id===id) : null;
+  const data = {
+    id: id || Date.now().toString(36),
+    name: document.getElementById('goal-name').value,
+    type: document.getElementById('goal-type').value,
+    targetValue: parseFloat(document.getElementById('goal-target').value),
+    deadline: document.getElementById('goal-deadline').value
+  };
+  if (goal) Object.assign(goal, data);
+  else appData.goals.push(data);
+  saveData(); closeModal(); renderGoals();
+}
+function renderGoals() {
+  const list = document.getElementById('goals-list');
+  if (!appData.goals.length) { list.innerHTML = '<div class="card">Нет целей</div>'; return; }
+  list.innerHTML = appData.goals.map(g => {
+    const progress = calculateGoalProgress(g);
+    return `<div class="card">
+      <strong>${g.name}</strong> (${g.type==='accumulation'?'Накопление':g.type==='monthlyProfit'?'Прибыль за период':'Средняя маржа'})
+      <div>Цель: ${g.targetValue} ${g.type==='avgMargin'?'%':'₽'}</div>
+      <div>Прогресс: ${progress.current.toFixed(1)} / ${g.targetValue}</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100, (progress.current/g.targetValue)*100)}%"></div></div>
+      <div style="font-size:13px; color:var(--text-secondary);">${progress.message}</div>
+      <button class="btn small secondary" onclick="openGoalForm(appData.goals.find(g=>g.id==='${g.id}'))">Изменить</button>
+      <button class="btn small danger" onclick="deleteGoal('${g.id}')">Удалить</button>
+    </div>`;
+  }).join('');
+}
+function calculateGoalProgress(goal) {
+  const sold = appData.inventory.filter(d => d.status==='sold' && d.sale);
+  const totalProfit = sold.reduce((sum,d) => sum + (d.sale.price - ((d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0))), 0);
+  let current = 0, message = '';
+  if (goal.type === 'accumulation') {
+    current = totalProfit;
+    const remaining = goal.targetValue - current;
+    const avgDaily = averageDailyProfit(30);
+    const daysLeft = avgDaily > 0 ? Math.ceil(remaining / avgDaily) : Infinity;
+    message = `Осталось ~${daysLeft===Infinity?'∞':daysLeft} дн. при текущем темпе`;
+  } else if (goal.type === 'monthlyProfit') {
+    const thisMonth = new Date().getMonth();
+    const monthProfit = sold.filter(d => new Date(d.sale.date).getMonth()===thisMonth).reduce((sum,d) => sum + (d.sale.price - ((d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0))),0);
+    current = monthProfit;
+    message = `Текущая прибыль в этом месяце: ${monthProfit.toLocaleString()} ₽`;
+  } else if (goal.type === 'avgMargin') {
+    const margins = sold.map(d => { const cost = (d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0); return d.sale.price ? ((d.sale.price-cost)/d.sale.price*100) : 0; });
+    current = margins.length ? margins.reduce((a,b)=>a+b,0)/margins.length : 0;
+    message = `Средняя маржа: ${current.toFixed(1)}%`;
+  }
+  return { current, message };
+}
+function deleteGoal(id) { appData.goals = appData.goals.filter(g => g.id!==id); saveData(); renderGoals(); }
+
+// ----- DASHBOARD -----
+function updateDashboard() {
+  const now = new Date();
+  const today = now.toDateString();
+  const weekAgo = new Date(now - 7*86400000);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const sold = appData.inventory.filter(d => d.status==='sold' && d.sale);
+  const soldToday = sold.filter(d => new Date(d.sale.date).toDateString()===today).length;
+  const soldWeek = sold.filter(d => new Date(d.sale.date) >= weekAgo).length;
+  const soldMonth = sold.filter(d => new Date(d.sale.date) >= monthStart).length;
+  const profitMonth = sold.filter(d => new Date(d.sale.date) >= monthStart).reduce((sum,d) => sum + (d.sale.price - ((d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0))),0);
+  document.getElementById('stat-today').textContent = soldToday;
+  document.getElementById('stat-week').textContent = soldWeek;
+  document.getElementById('stat-month').textContent = soldMonth;
+  document.getElementById('stat-profit').textContent = profitMonth.toLocaleString() + ' ₽';
+
+  const frozen = appData.inventory.filter(d => d.status !== 'sold').reduce((sum,d) => sum + ((d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0)),0);
+  document.getElementById('frozen-capital').textContent = frozen.toLocaleString() + ' ₽';
+
+  const goalWidget = document.getElementById('goal-widget');
+  if (appData.goals.length) {
+    const goal = appData.goals[0];
+    const p = calculateGoalProgress(goal);
+    goalWidget.innerHTML = `<strong>🎯 ${goal.name}</strong><div class="progress-bar" style="margin-top:6px;"><div class="progress-fill" style="width:${Math.min(100, (p.current/goal.targetValue)*100)}%"></div></div><small>${p.message}</small>`;
+  } else goalWidget.innerHTML = '<p>Добавьте первую цель</p>';
+
+  renderMiniChart();
+}
+function averageDailyProfit(days) {
+  const since = new Date(Date.now() - days*86400000);
+  const sold = appData.inventory.filter(d => d.status==='sold' && d.sale && new Date(d.sale.date) >= since);
+  const profit = sold.reduce((sum,d) => sum + (d.sale.price - ((d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0))),0);
+  return profit / days;
+}
+let miniChartInstance;
+function renderMiniChart() {
+  const ctx = document.getElementById('miniChart').getContext('2d');
+  const months = [];
+  const profits = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth() - i);
+    const month = d.getMonth(); const year = d.getFullYear();
+    const sold = appData.inventory.filter(dev => dev.status==='sold' && dev.sale && new Date(dev.sale.date).getMonth()===month && new Date(dev.sale.date).getFullYear()===year);
+    const profit = sold.reduce((sum,dev) => sum + (dev.sale.price - ((dev.purchaseCost||0)+(dev.repairCost||0)+(dev.accessoriesCost||0)+(dev.shippingCost||0)+(dev.platformFee||0))),0);
+    months.push(d.toLocaleString('ru',{month:'short'}));
+    profits.push(profit);
+  }
+  if (miniChartInstance) miniChartInstance.destroy();
+  miniChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels: months, datasets: [{ label: 'Прибыль', data: profits, borderColor: '#0a84ff', tension: 0.3 }] },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+}
+
+// ----- ANALYTICS -----
+function renderAnalytics() {
+  const sold = appData.inventory.filter(d => d.status==='sold' && d.sale);
+  // Monthly profit histogram
+  const monthsMap = {};
+  sold.forEach(d => {
+    const key = new Date(d.sale.date).toLocaleString('ru',{month:'short', year:'numeric'});
+    const profit = d.sale.price - ((d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0));
+    monthsMap[key] = (monthsMap[key]||0) + profit;
+  });
+  const labels = Object.keys(monthsMap).sort((a,b)=> new Date(a) - new Date(b));
+  const data = labels.map(k => monthsMap[k]);
+  new Chart(document.getElementById('profitChart'), { type:'bar', data:{labels, datasets:[{label:'Прибыль',data,backgroundColor:'#0a84ff'}]} });
+
+  // Model distribution
+  const modelCount = {};
+  sold.forEach(d => { modelCount[d.model] = (modelCount[d.model]||0)+1; });
+  new Chart(document.getElementById('modelChart'), { type:'pie', data:{labels:Object.keys(modelCount), datasets:[{data:Object.values(modelCount)}]} });
+
+  // Cost breakdown
+  const costSum = { repair:0, shipping:0, platform:0 };
+  sold.forEach(d => { costSum.repair += (d.repairCost||0); costSum.shipping += (d.shippingCost||0); costSum.platform += (d.platformFee||0); });
+  new Chart(document.getElementById('costChart'), { type:'pie', data:{labels:['Ремонт','Доставка','Комиссия'], datasets:[{data:[costSum.repair,costSum.shipping,costSum.platform]}]} });
+}
+
+// ----- MODAL -----
+function showModal(html) { document.getElementById('modal-content').innerHTML = html; document.getElementById('modal').classList.add('show'); }
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+// ----- CURRENCY -----
+async function updateExchangeRate() {
+  if (appData.settings.rateDate === new Date().toDateString()) return;
+  try {
+    const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+    const data = await res.json();
+    appData.settings.rate = data.rates.RUB;
+    appData.settings.rateDate = new Date().toDateString();
+    saveData();
+  } catch(e) { console.warn('Не удалось обновить курс'); }
+}
+function convertCurrency() {
+  const usd = parseFloat(document.getElementById('usd-input').value);
+  if (!usd || !appData.settings.rate) return document.getElementById('rub-output').textContent = 'Загрузка курса...';
+  document.getElementById('rub-output').textContent = (usd * appData.settings.rate).toFixed(2) + ' RUB';
+}
+
+// ----- EXPORT/IMPORT -----
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(appData)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'iphone_flip_backup.json'; a.click();
+}
+function exportCSV() {
+  const rows = [['Модель','Цвет','Память','Состояние','Статус','Себестоимость','Цена продажи','Прибыль','Маржа%']];
+  appData.inventory.forEach(d => {
+    const cost = (d.purchaseCost||0)+(d.repairCost||0)+(d.accessoriesCost||0)+(d.shippingCost||0)+(d.platformFee||0);
+    const profit = d.sale ? d.sale.price - cost : '';
+    const margin = profit && d.sale ? ((profit/d.sale.price)*100).toFixed(1) : '';
+    rows.push([d.model,d.color,d.storage,d.condition,d.status,cost, d.sale?.price||'', profit, margin]);
+  });
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory.csv'; a.click();
+}
+function importData() {
+  const file = document.getElementById('import-file').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { try { appData = JSON.parse(e.target.result); saveData(); location.reload(); } catch(ex) { alert('Ошибка файла'); } };
+  reader.readAsText(file);
+}
+
+// ----- AMOLED -----
+function toggleAmoled() {
+  appData.settings.amoled = document.getElementById('amoled-toggle').checked;
+  document.body.style.background = appData.settings.amoled ? '#000' : '#000';
+  saveData();
+}
+
+// ----- IMEI SCANNER (Barcode Detection API) -----
+function scanIMEI() {
+  if ('BarcodeDetector' in window) {
+    const barcodeDetector = new BarcodeDetector({ formats: ['qr_code', 'ean_13', 'code_128'] });
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(stream => {
+      const video = document.createElement('video');
+      video.srcObject = stream; video.play();
+      const scan = () => {
+        barcodeDetector.detect(video).then(codes => {
+          if (codes.length) {
+            const imei = codes[0].rawValue;
+            document.getElementById('dev-imei').value = imei;
+            stream.getTracks().forEach(t => t.stop());
+          } else requestAnimationFrame(scan);
+        });
+      };
+      scan();
+    }).catch(() => alert('Нет доступа к камере'));
+  } else {
+    const imei = prompt('Введите IMEI вручную:');
+    if (imei) document.getElementById('dev-imei').value = imei;
+  }
+}
+
+// ----- INIT -----
+window.onload = () => {
+  loadData();
+  updateExchangeRate();
+  if (!appData.settings.pinHash) {
+    document.getElementById('onboarding-screen').classList.add('active');
+    initOnboarding();
+  } else {
+    document.getElementById('pin-enter').style.display = 'block';
+  }
+};
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+</script>
+</body>
+</html>
